@@ -21,34 +21,36 @@ class BarangKeluarController extends Controller
         return view('barang-keluar.create', compact('products'));
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'jumlah' => 'required|integer|min:1',
-            'tanggal_keluar' => 'required|date',
-        ]);
+public function store(Request $request)
+{
+    $request->validate([
+        'product_id' => 'required|exists:products,id',
+        'jumlah' => 'required|integer|min:1',
+        'tanggal_keluar' => 'required|date',
+        'keterangan' => 'nullable|string',
+    ]);
 
-        DB::transaction(function () use ($request) {
-            $product = Product::findOrFail($request->product_id);
+    $product = Product::findOrFail($request->product_id);
 
-            // ⛔ VALIDASI PALING PENTING
-            if ($request->jumlah > $product->stok) {
-                abort(400, 'Stok tidak mencukupi');
-            }
-
-            BarangKeluar::create([
-                'product_id' => $request->product_id,
-                'jumlah' => $request->jumlah,
-                'tanggal_keluar' => $request->tanggal_keluar,
-                'keterangan' => $request->keterangan,
-            ]);
-
-            $product->decrement('stok', $request->jumlah);
-        });
-
-        return redirect()
-            ->route('barang-keluar.index')
-            ->with('success', 'Barang keluar berhasil disimpan');
+    // cek stok
+    if ($request->jumlah > $product->stok) {
+        // jika stok tidak cukup, redirect dengan error
+        return redirect()->back()->with('error', 'Stok tidak mencukupi!');
     }
+
+    // kurangi stok produk
+    $product->stok -= $request->jumlah;
+    $product->save();
+
+    // simpan data barang keluar
+    BarangKeluar::create([
+        'product_id' => $product->id,
+        'jumlah' => $request->jumlah,
+        'tanggal_keluar' => $request->tanggal_keluar,
+        'keterangan' => $request->keterangan,
+    ]);
+
+    return redirect()->route('barang-keluar.index')
+                     ->with('success', 'Barang keluar berhasil disimpan');
+}
 }
